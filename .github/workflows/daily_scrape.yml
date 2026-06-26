@@ -25,9 +25,8 @@ jobs:
       - name: Run NeST scraper
         run: python nest_scraper.py
 
-      # TEST MODE: --force sends alert even with no new matches
       - name: Send alert (if new matches)
-        run: python send_alert.py --force
+        run: python send_alert.py
         continue-on-error: true
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
@@ -66,3 +65,4 @@ jobs:
           git add qualis_live_tenders.json previous_matches.json
           git diff --staged --quiet || git commit -m "chore: daily scrape $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push
+revert: remove --force flag, restore normal alert behaviour
