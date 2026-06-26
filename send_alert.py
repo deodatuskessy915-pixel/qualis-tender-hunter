@@ -34,6 +34,8 @@ import urllib.request
 from datetime import datetime, timezone
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Configuration from environment
+# ─────────────────────────────────────────────────────────────────────────────
 SCRIPT_DIR    = os.path.dirname(os.path.abspath(__file__))
 TENDERS_FILE  = os.path.join(SCRIPT_DIR, "qualis_live_tenders.json")
 PREVIOUS_FILE = os.path.join(SCRIPT_DIR, "previous_matches.json")
@@ -46,7 +48,7 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 RESEND_URL = "https://api.resend.com/emails"
-MIN_ALERT_SCORE = 4
+MIN_ALERT_SCORE = 4   # only alert on matches at or above this score
 
 
 def log(msg: str):
@@ -75,9 +77,12 @@ def fmt_days(dl: str) -> str:
         return dl
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# LOAD DATA
+# ─────────────────────────────────────────────────────────────────────────────
 def load_current_matches() -> list:
     if not os.path.exists(TENDERS_FILE):
-        log(f"ERROR: {TENDERS_FILE} not found")
+        log(f"ERROR: {TENDERS_FILE} not found — run nest_scraper.py first")
         return []
     with open(TENDERS_FILE, encoding="utf-8") as f:
         data = json.load(f)
@@ -103,7 +108,7 @@ def save_previous_ids(matches: list):
     }
     with open(PREVIOUS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-    log(f"Saved {len(ids)} match IDs to {PREVIOUS_FILE}")
+    log(f"Saved {len(ids)} current match IDs to {PREVIOUS_FILE}")
 
 
 def find_new_matches(current: list, prev_ids: set) -> list:
@@ -111,6 +116,7 @@ def find_new_matches(current: list, prev_ids: set) -> list:
             if (m.get("entity_uuid") or m.get("id") or m.get("ref")) not in prev_ids]
 
 
+# Helpers to normalise v1 / v2 field names
 def m_title(m):    return (m.get("t") or m.get("title") or "Untitled").strip()
 def m_buyer(m):    return m.get("buyer") or "Unknown buyer"
 def m_dl(m):       return m.get("dl") or m.get("deadline") or ""
@@ -119,16 +125,22 @@ def m_url(m):      return m.get("u") or m.get("nest_url") or ""
 def m_kws(m):      return m.get("k") or m.get("matched_keywords") or []
 def m_priority(m): return bool(m.get("p") or m.get("priority"))
 def m_tier(m):     return m.get("value_tier") or "STANDARD"
+def m_value(m):    return m.get("value_est") or ""
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CHANNEL 1 — TELEGRAM
+# ─────────────────────────────────────────────────────────────────────────────
 def build_telegram_msg(new_matches: list, all_matches: list) -> str:
     lines = []
-    lines.append("\U0001f3d7 <b>Qualis Tender Alert</b>")
+    lines.append("🏗 <b>Qualis Tender Alert</b>")
     lines.append(
         f"<b>{len(new_matches)} new match{'es' if len(new_matches) != 1 else ''}</b> — "
         f"{datetime.now().strftime('%d %b %Y %H:%M')} EAT"
     )
     lines.append("")
+
+    # Urgency banner
     urgent = []
     for m in new_matches:
         dl = m_dl(m)
@@ -143,26 +155,32 @@ def build_telegram_msg(new_matches: list, all_matches: list) -> str:
         except Exception:
             pass
     if urgent:
-        lines.append(f"\u26a1 <b>{len(urgent)} closing within 3 days — submit today</b>")
+        lines.append(f"⚡ <b>{len(urgent)} closing within 3 days — submit today</b>")
         lines.append("")
+
     for i, m in enumerate(new_matches[:5], 1):
-        star = "\u2b50 " if m_priority(m) else ""
-        tier = "\U0001f525 HIGH VALUE \u00b7 " if m_tier(m) == "HIGH" else ""
+        star  = "⭐ " if m_priority(m) else ""
+        tier  = "🔥 HIGH VALUE · " if m_tier(m) == "HIGH" else ""
+        val   = m_value(m)
         lines.append(f"<b>{i}. {star}{tier}Score {m_score(m)}</b>")
-        lines.append(f"\U0001f4cb {m_title(m)[:120]}")
-        lines.append(f"\U0001f3e2 {m_buyer(m)}")
-        lines.append(f"\u23f0 {fmt_days(m_dl(m))}")
+        lines.append(f"📋 {m_title(m)[:120]}")
+        lines.append(f"🏢 {m_buyer(m)}")
+        if val:
+            lines.append(f"💰 {val}")
+        lines.append(f"⏰ {fmt_days(m_dl(m))}")
         kws = m_kws(m)
         if kws:
-            lines.append(f"\U0001f511 {', '.join(kws[:4])}")
-        lines.append(f"\U0001f517 <a href='{m_url(m)}'>View on NeST</a>")
+            lines.append(f"🔑 {', '.join(kws[:4])}")
+        lines.append(f"🔗 <a href='{m_url(m)}'>View on NeST</a>")
         lines.append("")
+
     if len(new_matches) > 5:
         lines.append(f"...and {len(new_matches) - 5} more in the dashboard.")
         lines.append("")
+
     lines.append(
-        f"\U0001f4ca <a href='https://qualis-tender-hunter.netlify.app'>Open Dashboard</a>"
-        f"  \u00b7  {len(all_matches)} total live matches"
+        f"📊 <a href='https://qualis-tender-hunter.netlify.app'>Open Dashboard</a>"
+        f"  ·  {len(all_matches)} total live matches"
     )
     return "\n".join(lines)
 
@@ -171,17 +189,22 @@ def send_telegram(new_matches: list, all_matches: list, dry_run: bool = False) -
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         log("Telegram: not configured  (add TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID to GitHub Secrets)")
         return False
+
     msg = build_telegram_msg(new_matches, all_matches)
+
     if dry_run:
-        log("DRY RUN: Telegram message preview:")
+        log("── DRY RUN: Telegram message ──────────────────────────────────")
         print(msg)
+        log("───────────────────────────────────────────────────────────────")
         return True
+
     payload = json.dumps({
         "chat_id":                  TELEGRAM_CHAT_ID,
         "text":                     msg,
         "parse_mode":               "HTML",
         "disable_web_page_preview": False,
     }).encode("utf-8")
+
     req = urllib.request.Request(
         f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
         data=payload,
@@ -204,78 +227,101 @@ def send_telegram(new_matches: list, all_matches: list, dry_run: bool = False) -
         return False
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CHANNEL 2 — RESEND EMAIL
+# ─────────────────────────────────────────────────────────────────────────────
 def build_email_html(new_matches: list, all_matches: list) -> str:
     today = datetime.now().strftime("%d %b %Y")
-    rows = ""
+    rows  = ""
     for m in new_matches:
-        score      = m_score(m)
-        tier       = m_tier(m)
-        pri_badge  = "&#11088; PRIORITY &middot; " if m_priority(m) else ""
-        tier_badge = "&#128293; HIGH VALUE &middot; " if tier == "HIGH" else ""
-        score_col  = "#22c55e" if score >= 20 else "#f59e0b" if score >= 10 else "#8a93ad"
-        kw_html    = " ".join(
+        score       = m_score(m)
+        tier        = m_tier(m)
+        pri_badge   = "&#11088; PRIORITY &middot; " if m_priority(m) else ""
+        tier_badge  = "&#128293; HIGH VALUE &middot; " if tier == "HIGH" else ""
+        score_col   = "#22c55e" if score >= 20 else "#f59e0b" if score >= 10 else "#8a93ad"
+        kw_html     = " ".join(
             f'<span style="background:#1c2035;color:#8a93ad;padding:2px 7px;border-radius:4px;font-size:11px;">{k}</span>'
             for k in m_kws(m)[:5]
         )
-        rows += (
-            f'<tr style="border-bottom:1px solid #1c2035;">'
-            f'<td style="padding:16px;vertical-align:top;width:60px;text-align:center;">'
-            f'<span style="font-size:24px;font-weight:800;color:{score_col};">{score}</span><br>'
-            f'<span style="font-size:9px;color:#4d566e;text-transform:uppercase;">score</span></td>'
-            f'<td style="padding:16px;vertical-align:top;">'
-            f'<div style="font-size:11px;color:#FFB800;font-weight:700;margin-bottom:4px;">{pri_badge}{tier_badge}{fmt_days(m_dl(m))}</div>'
-            f'<div style="font-size:14px;font-weight:600;color:#e8eaf2;margin-bottom:6px;">{m_title(m)}</div>'
-            f'<div style="font-size:12px;color:#8a93ad;margin-bottom:8px;">&#127962; {m_buyer(m)}</div>'
-            f'<div style="margin-bottom:10px;">{kw_html}</div>'
-            f'<a href="{m_url(m)}" style="display:inline-block;background:#FFB800;color:#000;padding:7px 16px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">View on NeST &#8594;</a>'
-            f'</td></tr>'
-        )
-    n = len(new_matches)
-    return (
-        '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<title>Qualis Tender Alert</title></head>'
-        '<body style="margin:0;padding:0;background:#0b0e17;font-family:-apple-system,sans-serif;color:#e8eaf2;">'
-        '<div style="max-width:640px;margin:0 auto;padding:28px 16px;">'
-        '<div style="display:flex;align-items:center;gap:14px;margin-bottom:28px;">'
-        '<div style="width:42px;height:42px;background:#FFB800;border-radius:10px;text-align:center;line-height:42px;font-size:20px;font-weight:900;color:#000;">Q</div>'
-        '<div><div style="font-size:18px;font-weight:800;">Qualis <span style="color:#FFB800;">Tender Alert</span></div>'
-        f'<div style="font-size:11px;color:#4d566e;">{today} &middot; Tanzania Infrastructure Intelligence</div></div></div>'
-        f'<div style="background:#161926;border:1px solid rgba(255,184,0,.3);border-radius:10px;padding:16px 20px;margin-bottom:24px;">'
-        f'<span style="font-size:28px;font-weight:800;color:#FFB800;">{n}</span>'
-        f'<span style="font-size:14px;color:#e8eaf2;margin-left:8px;">new tender{"s" if n!=1 else ""} since last run</span>'
-        f'<div style="font-size:12px;color:#8a93ad;margin-top:4px;">{len(all_matches)} total live matches today</div></div>'
-        f'<table width="100%" cellpadding="0" cellspacing="0" style="background:#161926;border:1px solid rgba(255,255,255,.07);border-radius:10px;border-collapse:collapse;margin-bottom:24px;">{rows}</table>'
-        '<div style="text-align:center;margin-bottom:28px;">'
-        '<a href="https://qualis-tender-hunter.netlify.app" style="display:inline-block;background:#FFB800;color:#000;padding:14px 32px;border-radius:8px;font-size:14px;font-weight:800;text-decoration:none;">Open Live Dashboard &#8594;</a></div>'
-        '<div style="text-align:center;font-size:11px;color:#4d566e;border-top:1px solid rgba(255,255,255,.05);padding-top:16px;">'
-        'Qualis Engineering Limited &middot; CRB Class V &middot; TIN 157-968-718 &middot; Dar es Salaam<br>'
-        'Automated by Qualis Tender Hunter &mdash; runs daily at 06:00 EAT</div></div></body></html>'
-    )
+        rows += f"""
+        <tr style="border-bottom:1px solid #1c2035;">
+          <td style="padding:16px;vertical-align:top;width:60px;text-align:center;">
+            <span style="font-size:24px;font-weight:800;color:{score_col};">{score}</span><br>
+            <span style="font-size:9px;color:#4d566e;text-transform:uppercase;letter-spacing:.06em;">score</span>
+          </td>
+          <td style="padding:16px;vertical-align:top;">
+            <div style="font-size:11px;color:#FFB800;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">{pri_badge}{tier_badge}{fmt_days(m_dl(m))}</div>
+            <div style="font-size:14px;font-weight:600;color:#e8eaf2;margin-bottom:6px;">{m_title(m)}</div>
+            <div style="font-size:12px;color:#8a93ad;margin-bottom:8px;">&#127962; {m_buyer(m)}</div>
+            <div style="margin-bottom:10px;">{kw_html}</div>
+            <a href="{m_url(m)}" style="display:inline-block;background:#FFB800;color:#000;padding:7px 16px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;">View on NeST &#8594;</a>
+          </td>
+        </tr>"""
+
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qualis Tender Alert</title></head>
+<body style="margin:0;padding:0;background:#0b0e17;font-family:-apple-system,sans-serif;color:#e8eaf2;">
+<div style="max-width:640px;margin:0 auto;padding:28px 16px;">
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:28px;">
+    <div style="width:42px;height:42px;background:#FFB800;border-radius:10px;text-align:center;line-height:42px;font-size:20px;font-weight:900;color:#000;flex-shrink:0;">Q</div>
+    <div>
+      <div style="font-size:18px;font-weight:800;">Qualis <span style="color:#FFB800;">Tender Alert</span></div>
+      <div style="font-size:11px;color:#4d566e;">{today} &middot; Tanzania Infrastructure Intelligence</div>
+    </div>
+  </div>
+  <div style="background:#161926;border:1px solid rgba(255,184,0,.3);border-radius:10px;padding:16px 20px;margin-bottom:24px;">
+    <span style="font-size:28px;font-weight:800;color:#FFB800;">{len(new_matches)}</span>
+    <span style="font-size:14px;color:#e8eaf2;margin-left:8px;">new tender{'s' if len(new_matches)!=1 else ''} since last run</span>
+    <div style="font-size:12px;color:#8a93ad;margin-top:4px;">{len(all_matches)} total live matches today</div>
+  </div>
+  <table width="100%" cellpadding="0" cellspacing="0"
+    style="background:#161926;border:1px solid rgba(255,255,255,.07);border-radius:10px;border-collapse:collapse;margin-bottom:24px;">
+    {rows}
+  </table>
+  <div style="text-align:center;margin-bottom:28px;">
+    <a href="https://qualis-tender-hunter.netlify.app"
+      style="display:inline-block;background:#FFB800;color:#000;padding:14px 32px;border-radius:8px;font-size:14px;font-weight:800;text-decoration:none;">
+      Open Live Dashboard &#8594;
+    </a>
+  </div>
+  <div style="text-align:center;font-size:11px;color:#4d566e;border-top:1px solid rgba(255,255,255,.05);padding-top:16px;">
+    Qualis Engineering Limited &middot; CRB Class V &middot; TIN 157-968-718 &middot; Dar es Salaam<br>
+    Automated by Qualis Tender Hunter &mdash; runs daily at 06:00 EAT
+  </div>
+</div></body></html>"""
 
 
 def send_email(new_matches: list, all_matches: list, dry_run: bool = False) -> bool:
     if not RESEND_API_KEY:
         log("Email: RESEND_API_KEY not set — skipping")
         return False
+
     subject = (
         f"{len(new_matches)} new tender{'s' if len(new_matches)!=1 else ''} — Qualis Alert"
         if new_matches else "Qualis Tender Hunter — No new matches today"
     )
     html = build_email_html(new_matches, all_matches)
+
     if dry_run:
-        log(f"DRY RUN: Email to {ALERT_TO_EMAIL} — Subject: {subject}")
+        log(f"── DRY RUN: Email to {ALERT_TO_EMAIL} ─── Subject: {subject}")
         return True
+
     payload = json.dumps({
         "from":    RESEND_FROM_EMAIL,
         "to":      [ALERT_TO_EMAIL],
         "subject": subject,
         "html":    html,
     }).encode("utf-8")
+
     req = urllib.request.Request(
         RESEND_URL,
         data=payload,
-        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type":  "application/json",
+        },
         method="POST",
     )
     try:
@@ -287,15 +333,19 @@ def send_email(new_matches: list, all_matches: list, dry_run: bool = False) -> b
         body = e.read().decode("utf-8", errors="replace")
         log(f"Email HTTP {e.code}: {body}")
         if e.code == 403 and ("1010" in body or "testing" in body.lower()):
-            log("  DIAGNOSIS: Resend error 1010 — onboarding@resend.dev can only send")
-            log("  to the Resend account owner's verified email on the free plan.")
-            log("  FIX: Add TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID to GitHub Secrets")
+            log("  DIAGNOSIS: Resend error 1010 — onboarding@resend.dev can only send to the")
+            log("  Resend account owner's verified email on the free plan.")
+            log("  FIX: Add TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID secrets for instant alerts")
+            log("  (2 min setup: message @BotFather on Telegram, then @userinfobot for chat ID)")
         return False
     except Exception as ex:
         log(f"Email exception: {ex}")
         return False
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────────────────────────────────────
 def main():
     import argparse
     ap = argparse.ArgumentParser(description="Qualis Tender Alert v2")
@@ -304,7 +354,7 @@ def main():
                     help="Send alert even with no new matches (for testing)")
     args = ap.parse_args()
 
-    log("─── Qualis Alert System v2 ─────────────────────────────────────────")
+    log("─── Qualis Alert System v2 ──────────────────────────────────────")
     log(f"Telegram : {'configured' if TELEGRAM_BOT_TOKEN else 'NOT configured'}")
     log(f"Email    : {'configured' if RESEND_API_KEY else 'NOT configured'}")
     log("─────────────────────────────────────────────────────────────────")

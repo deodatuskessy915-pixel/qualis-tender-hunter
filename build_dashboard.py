@@ -45,26 +45,34 @@ def resolve_paths():
 
 # --- Trim records to keep inlined payload small --------------------------
 def trim_live(m):
-    """Compact a live-tender record for the dashboard."""
+    """Compact a live-tender record for the dashboard.
+    Supports both v2 (long field names) and v3 (short field names) scraper output.
+    """
+    # v3 short names take priority; v2 long names are fallbacks
     return {
-        "id":       m.get("entity_uuid"),
-        "t":        m.get("title") or "",
+        "id":       m.get("entity_uuid") or m.get("id"),
+        "t":        m.get("t") or m.get("title") or "",
         "buyer":    m.get("buyer") or "",
-        "ref":      m.get("reference_number") or "",
-        "type":     m.get("entity_type") or "",          # TENDER / FRAMEWORK
-        "cat":      m.get("category") or "",
-        "subcat":   m.get("sub_category") or "",
-        "fy":       m.get("financial_year") or "",
-        "inv":      m.get("invitation_date") or "",
-        "dl":       m.get("deadline") or "",             # "YYYY-MM-DDTHH:MM"
-        "lots":     m.get("lot_count") or 1,
-        "addendum": bool(m.get("has_addendum")),
-        "s":        m.get("score") or 0,
-        "r":        m.get("reason") or "",
-        "k":        m.get("matched_keywords") or [],
-        "u":        m.get("nest_url") or "",
-        "p":        bool(m.get("priority")),             # is the buyer a Qualis priority?
-        "pm":       m.get("priority_match") or "",       # which priority pattern matched
+        "ref":      m.get("ref") or m.get("reference_number") or "",
+        "type":     m.get("type") or m.get("entity_type") or "",   # TENDER / FRAMEWORK
+        "cat":      m.get("cat") or m.get("category") or "",
+        "subcat":   m.get("subcat") or m.get("sub_category") or "",
+        "fy":       m.get("fy") or m.get("financial_year") or "",
+        "inv":      m.get("inv") or m.get("invitation_date") or "",
+        "dl":       m.get("dl") or m.get("deadline") or "",        # "YYYY-MM-DDTHH:MM"
+        "dl_days":  m.get("dl_days"),
+        "lots":     m.get("lots") or m.get("lot_count") or 1,
+        "addendum": bool(m.get("addendum") or m.get("has_addendum")),
+        "local_only": bool(m.get("local_only")),
+        "s":        m.get("s") or m.get("score") or 0,
+        "r":        m.get("r") or m.get("reason") or "",
+        "k":        m.get("k") or m.get("matched_keywords") or [],
+        "u":        m.get("u") or m.get("nest_url") or "",
+        "p":        bool(m.get("p") or m.get("priority")),         # priority buyer?
+        "pm":       m.get("pm") or m.get("priority_match") or "",  # which pattern matched
+        "value_est":  m.get("value_est") or "",
+        "value_tier": m.get("value_tier") or "STANDARD",
+        "value_basis": m.get("value_basis") or "",
     }
 
 
@@ -327,6 +335,16 @@ a{color:inherit;text-decoration:none}
 .tc-buyer{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text2)}
 .tc-buyer .bname{color:var(--text);font-weight:500}
 .tc-buyer .pmatch{color:var(--y);font-size:10.5px;font-weight:600;margin-left:2px}
+
+/* value estimate badge */
+.tc-val{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:4px 10px;border-radius:5px;font-size:11.5px;font-weight:600;
+  align-self:flex-start;
+}
+.tc-val-high{background:rgba(34,197,94,0.12);color:#4ade80;border:1px solid rgba(34,197,94,.18)}
+.tc-val-medium{background:rgba(245,158,11,0.12);color:#fbbf24;border:1px solid rgba(245,158,11,.18)}
+.tc-val-standard{background:var(--surf3);color:var(--text2);border:1px solid var(--border)}
 
 /* meta 2-col grid */
 .tc-meta{
@@ -691,10 +709,12 @@ function ring(score){
 /* ── HEADER ── */
 function renderHdr(){
   const p=META.live_priority||0;
+  const hv=(META.live_high_value||0);
   document.getElementById("hdr-stats").innerHTML=`
     <div class="hpill hl"><span class="pn">${(META.live_total_pub||0).toLocaleString()}</span><span class="pl">open on NeST</span></div>
     <div class="hpill hm"><span class="pn">${(META.live_match_count||0).toLocaleString()}</span><span class="pl">live matches</span></div>
     ${p>0?`<div class="hpill hp"><span class="pn">${p}</span><span class="pl">priority buyer${p>1?"s":""}</span></div>`:""}
+    ${hv>0?`<div class="hpill" style="border-color:rgba(34,197,94,.25)"><span class="pn" style="color:var(--green)">${hv}</span><span class="pl">high value</span></div>`:""}
     <div class="hpill ho"><span class="pn">${OCDS.length.toLocaleString()}</span><span class="pl">in pipeline</span></div>`;
   const d=META.live_generated_at?META.live_generated_at.slice(0,10):"—";
   document.getElementById("hdr-date").textContent=`Updated ${d}`;
@@ -743,6 +763,10 @@ function renderLive(){
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;color:var(--text3)"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
           <span class="bname">${esc(r.buyer)}</span>${pm}
         </div>
+        ${r.value_est?`<div class="tc-val tc-val-${(r.value_tier||"STANDARD").toLowerCase()}">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span>${esc(r.value_est)}</span>
+        </div>`:""}
         <div class="tc-meta">
           <div class="tc-meta-it"><strong>Category</strong><span>${esc(r.cat||"—")}</span></div>
           <div class="tc-meta-it"><strong>Sub-category</strong><span>${esc(r.subcat||"—")}</span></div>
