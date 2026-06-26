@@ -1,4 +1,4 @@
-name: Daily Tender Scrape & Deploy
+name: Daily Tender Scrape, Alert & Deploy — v3
 
 on:
   schedule:
@@ -12,30 +12,36 @@ jobs:
 
     steps:
 
+      # 1. Check out the repo (includes keywords.py, build_dashboard.py, qualis_matches.json)
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # 2. Python (stdlib only — no pip needed)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # 3. Fetch live tenders from NeST GraphQL API
       - name: Run NeST scraper
         run: python nest_scraper.py
 
-      - name: Send alert (if new matches)
+      # 4. Alert (Telegram first, email fallback) if new matches since last run
+      - name: Send alert (Telegram + email) if new matches
         run: python send_alert.py
-        continue-on-error: true
+        continue-on-error: true   # alert failure never blocks scrape+deploy
         env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          RESEND_API_KEY:     ${{ secrets.RESEND_API_KEY }}
 
+      # 5. Build the self-contained HTML dashboard
       - name: Build dashboard HTML
         run: python build_dashboard.py
 
+      # 6. Deploy qualis_dashboard.html to Netlify as index.html
       - name: Deploy to Netlify
         run: |
           cp qualis_dashboard.html index.html
@@ -58,11 +64,12 @@ jobs:
               print('WARNING: unexpected deploy state')
           "
 
+      # 7. Commit updated data files back to the repo
       - name: Commit updated data files
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "GitHub Actions"
           git add qualis_live_tenders.json previous_matches.json
+          # Only commit if something actually changed
           git diff --staged --quiet || git commit -m "chore: daily scrape $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push
-revert: remove --force flag, restore normal alert behaviour
