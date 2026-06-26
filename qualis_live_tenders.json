@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-26T21:25:43.916299+00:00",
+  "generated_at": "2026-06-26T21:44:21.502589+00:00",
   "source": "NeST published-tenders (live)",
   "graphql_url": "https://nest.go.tz/gateway/nest-app/graphql",
   "total_published": 262,
@@ -235,9 +235,9 @@
   ],
   "ocds": [],
   "meta": {
-    "built_at": "2026-06-26T21:25:43.916285+00:00",
+    "built_at": "2026-06-26T21:44:21.502572+00:00",
     "live_source": "NeST published-tenders (live)",
-    "live_generated_at": "2026-06-26T21:25:43.916295+00:00",
+    "live_generated_at": "2026-06-26T21:44:21.502585+00:00",
     "live_total_pub": 262,
     "live_fetched": 200,
     "live_match_count": 4,
