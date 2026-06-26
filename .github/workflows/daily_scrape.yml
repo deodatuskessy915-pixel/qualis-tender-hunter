@@ -28,12 +28,14 @@ jobs:
       - name: Run NeST scraper
         run: python nest_scraper.py
 
-      # 4. Email alert if new matches appeared since last run
-      - name: Send email alert (if new matches)
+      # 4. Alert via Telegram (primary) and/or Resend email if new matches appeared
+      - name: Send alert (if new matches)
         run: python send_alert.py
-        continue-on-error: true   # email failure never blocks scrape+deploy
+        continue-on-error: true   # alert failure never blocks scrape+deploy
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       # 5. Build the self-contained HTML dashboard
       - name: Build dashboard HTML
