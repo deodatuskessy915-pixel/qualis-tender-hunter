@@ -1,19 +1,25 @@
 """
-Qualis Tender Hunter — Keyword Configuration
-=============================================
+Qualis Tender Hunter — Keyword Configuration v2
+================================================
+Major precision overhaul — Session 6 performance analysis identified:
+  - 42% false positive rate (furniture, lab equipment, road maintenance)
+  - "supply and install" + "commissioning" firing on everything
+  - Missing high-value signals: mini-grid, LV/MV distribution, emergency power
 
-The matching philosophy:
-- INCLUDE keywords trigger a match (any one is enough)
-- EXCLUDE keywords kill a match (any one disqualifies)
-- Some keywords get extra weight (strong signals like "solar pv" or "33kv")
-
-This is intentionally generous. Better to show Deodatus 10 tenders and
-let him say "skip 3 of these" than to miss real opportunities.
+Changes vs v1:
+  REMOVED from SOFT: "supply and install", "commissioning", "design and build",
+                     "electrical" (alone), "electric" (alone)  - all too generic
+  ADDED to STRONG: electrical installation, power supply system, mini-grid,
+                   LV/MV distribution, off-grid solar, emergency power, etc.
+  ADDED to HARD_EXCLUDE: laboratory equipment, vaccine, office furniture,
+                          medical equipment, filling machine, dental/x-ray
+  EXPANDED PRIORITY_BUYERS: TANESCO, TANROADS, REA, NHC, TPA, TAZARA added
 """
 
-# Strong signals — these almost certainly mean Qualis work
+# STRONG SIGNALS - unmistakably Qualis work. Score +10 each.
 STRONG_INCLUDE = [
-    # Electrical work
+    # Core electrical contracting (CRB Class V)
+    "electrical installation",
     "electrical install",
     "electrical work",
     "electrical system",
@@ -21,61 +27,102 @@ STRONG_INCLUDE = [
     "electrical fittings",
     "electrical materials",
     "electrical contractor",
-    # Solar
+    "power installation",
+    "power supply system",
+    "supply and installation of electrical",
+    "installation of electrical",
+    # Solar - all variants
     "solar pv",
     "solar system",
     "solar streetlight",
     "solar street light",
     "solar installation",
+    "solar panel",
     "photovoltaic",
-    # Generators
+    "off-grid solar",
+    "on-grid solar",
+    "installation of solar",
+    # Grid-scale / off-grid power
+    "mini-grid",
+    "mini grid",
+    "microgrid",
+    "micro grid",
+    # Generators / backup power
     "generator supply",
     "generator install",
     "generator maintenance",
     "standby generator",
+    "diesel generator",
     "genset",
-    # Power infrastructure
+    "emergency generator",
+    "emergency power supply",
+    "emergency lighting system",
+    # High / medium / low voltage infrastructure
     "33kv",
     "11kv",
+    "0.4kv",
     "substation",
     "transformer install",
+    "transformer supply",
+    "transformer replacement",
     "power line",
     "transmission line",
     "distribution line",
-    # UPS
+    "lv distribution",
+    "mv distribution",
+    "overhead line",
+    "underground cable",
+    "hv cable",
+    "mv cable",
+    "lv cable",
+    # UPS / power conditioning
     "ups system",
     "uninterruptible power",
     "uninterrupted power",
-    # Hose
+    "battery backup system",
+    "automatic voltage regulator",
+    "avr",
+    # Hose division (Qualis hose business)
     "hydraulic hose",
     "pneumatic hose",
     "hose repair",
     "hose assembly",
-    # Building materials (Qualis line of business)
+    "hose supply",
+    "industrial hose",
+    # Building materials (Qualis supply division)
     "cement supply",
     "supply of cement",
+    "supply of bricks",
     "steel supply",
     "supply of steel",
     "building materials",
-    # Common procurement phrases that fit Qualis
-    "supply install test commission",
+    "supply of building materials",
+    "reinforcement steel",
+    "roofing materials",
+    # Full supply-install packages specific to Qualis scope
     "supply, installation, testing and commissioning",
-    "design supply install",
+    "supply install test commission",
     "design, supply and installation",
+    "design supply install",
+    "installation of generator",
+    "installation of ups",
+    "installation of solar",
 ]
 
-# Looser signals — relevant if not paired with exclusions
+# SOFT SIGNALS - relevant but not definitive. Score +2 each.
+# RULE: Only include if they don't routinely fire on non-Qualis sectors.
+# REMOVED: "supply and install", "commissioning", "electrical" alone, "electric" alone
 SOFT_INCLUDE = [
-    "electrical",
-    "electric",
     "solar",
     "generator",
+    "genset",
     "ups",
     "substation",
     "transformer",
     "lighting",
     "streetlight",
     "street light",
+    "floodlight",
     "hose",
     "hydraulic",
     "pneumatic",
@@ -84,17 +131,56 @@ SOFT_INCLUDE = [
     "wiring",
     "panel board",
     "distribution board",
-    "supply and install",
-    "design and build",
-    "commissioning",
+    "mdb",
     "hvac",
     "air conditioning",
     "ict installation",
     "structured cabling",
+    "armoured cable",
+    "conduit",
+    "earthing",
+    "grounding",
+    "power factor",
+    "load bank",
+    "automatic transfer switch",
+    "ats",
 ]
 
-# Hard exclusions — these kill a match even if include keyword present
+# HARD EXCLUSIONS - kill any match immediately.
 HARD_EXCLUDE = [
+    # Lab / scientific / medical (NOT electrical contracting)
+    "laboratory equipment",
+    "lab equipment",
+    "laboratory furniture",
+    "laboratory chemicals",
+    "laboratory reagents",
+    "scientific equipment",
+    "medical equipment",
+    "medical supplies",
+    "medical devices",
+    "pharmaceutical",
+    "medicine supply",
+    "supply of medicine",
+    "vaccine",
+    "filling machine",
+    "dental equipment",
+    "dental chair",
+    "x-ray",
+    "xray",
+    "autoclave",
+    "centrifuge",
+    "microscope",
+    "ultrasound",
+    "dialysis",
+    # Furniture (NOT Qualis)
+    "office furniture",
+    "furniture supply",
+    "supply of furniture",
+    "supply and installation of furniture",
+    "chairs and tables",
+    "classroom furniture",
+    "hospital furniture",
+    "school furniture",
     # Food & hospitality
     "catering service",
     "food supply",
@@ -102,106 +188,98 @@ HARD_EXCLUDE = [
     "accommodation service",
     "hotel service",
     "tea and coffee",
-    # Pure services we don't do
+    "supply of food",
+    # Pure professional services
     "legal service",
     "legal counsel",
     "legal advisor",
     "advocate service",
     "translation service",
-    "translator",
     "interpretation service",
-    # Stationery / printing
-    "printing service",
-    "stationery supply",
-    "supply of stationery",
-    "office supplies",
-    "managed print",
-    # Pure transport
-    "car hire",
-    "vehicle hire",
-    "fleet supply",
-    "rental of vehicle",
-    "fuel supply",
-    # Training/consulting (no install)
-    "training service",
-    "training program",
     "consultancy service",
     "consulting service",
     "advisory service",
     "feasibility study",
     "needs assessment",
     "baseline survey",
-    # Healthcare/medical (unless electrical install)
-    "medical supplies",
-    "pharmaceutical",
-    "medicine supply",
-    # Security guard service (not electrical security)
-    "security guard",
-    "security service personnel",
-    # Insurance/finance
-    "insurance service",
+    "environmental impact",
     "audit service",
     "financial service",
-    # Cleaning
+    "insurance service",
+    "actuarial",
+    # Stationery / printing
+    "printing service",
+    "stationery supply",
+    "supply of stationery",
+    "office supplies",
+    "managed print",
+    "supply of paper",
+    "toner cartridge",
+    # Pure transport / fleet
+    "car hire",
+    "vehicle hire",
+    "fleet supply",
+    "rental of vehicle",
+    "fuel supply",
+    "supply of fuel",
+    "lubricant supply",
+    "supply of tyres",
+    # Training / capacity building
+    "training service",
+    "training program",
+    "capacity building",
+    "workshop facilitation",
+    # Security guard (not electronic security)
+    "security guard",
+    "security service personnel",
+    "manned guarding",
+    # Cleaning / sanitation
     "cleaning service",
     "janitorial",
     "fumigation",
-    # Land/lease (unless ground install)
+    "pest control",
+    "waste management service",
+    "garbage collection",
+    # Land / property
     "lease of land",
     "lease of space",
     "lease of office",
+    "land survey",
+    "land valuation",
+    # Software / ICT services (not installation)
+    "software development",
+    "software license",
+    "erp implementation",
+    "website development",
+    "mobile application",
+    "data entry",
+    "it support service",
+    # Agriculture / livestock
+    "seeds supply",
+    "supply of seeds",
+    "fertilizer supply",
+    "livestock supply",
+    "animal feed",
+    "veterinary supplies",
 ]
 
-# When in doubt, these procurement methods are NOT what we want
 EXCLUDE_PROCUREMENT_METHODS = [
-    # We don't bid on "Direct" awards (already chosen supplier)
     "direct procurement",
 ]
 
-# Regions Qualis operates in (used for boost, not exclusion)
 OPERATING_REGIONS = [
-    "dar es salaam",
-    "mwanza",
-    "mbeya",
-    "iringa",
-    "tabora",
-    "arusha",
-    "dodoma",
-    "bagamoyo",
-    "mkuranga",
-    "morogoro",  # confirmed via sample tender
-    "kilimanjaro",
-    "tanga",
-    "mtwara",
-    "ruvuma",
-    "shinyanga",  # client already there
-    "singida",
-    "kagera",
-    "geita",
-    "njombe",
-    "rukwa",
-    "katavi",
-    "manyara",
-    "songwe",
-    "simiyu",
-    "kigoma",
-    "mara",
-    "pwani",
-    "lindi",
+    "dar es salaam", "mwanza", "mbeya", "iringa", "tabora", "arusha",
+    "dodoma", "bagamoyo", "mkuranga", "morogoro", "kilimanjaro", "tanga",
+    "mtwara", "ruvuma", "shinyanga", "singida", "kagera", "geita", "njombe",
+    "rukwa", "katavi", "manyara", "songwe", "simiyu", "kigoma", "mara",
+    "pwani", "lindi",
 ]
 
-# Priority buyers — Qualis-prioritised procuring entities.
-# Matching is case-insensitive substring, so partial names work:
-#   "bank of tanzania" matches "BANK OF TANZANIA" and "Bank of Tanzania Mwanza Branch".
-#
-# To add a new priority buyer: just append a new line. No code changes elsewhere.
-# Keep entries lowercase for clarity (matching is case-insensitive either way).
+# PRIORITY BUYERS - existing clients + major infrastructure procurers.
+# Case-insensitive substring match on buyer name from NeST.
 PRIORITY_BUYERS = [
-    # Bank of Tanzania (BOT) — existing Qualis client. User-flagged top priority.
+    # Existing Qualis clients (relationship = competitive edge)
     "bank of tanzania",
-    "bot",
-
-    # Existing Qualis clients per PROJECT-KNOWLEDGE.md (the more they trust us, the easier the win)
     "oryx energies",
     "backlite media",
     "marie stopes",
@@ -213,22 +291,37 @@ PRIORITY_BUYERS = [
     "karimjee",
     "shinyanga municipal council",
     "emirate aluminium",
-    "emirates aluminium",            # spelling variant
+    "emirates aluminium",
     "fresh spring fellowship",
     "alliance one tobacco",
+    "tanzania breweries",
     "tbl mwanza",
-    "tanzania breweries",            # TBL = Tanzania Breweries Limited
     "cater & cure",
-    "cater and cure",                # spelling variant
+    "cater and cure",
     "karibu tanzania",
     "emirates glass",
     "kapa manufacturing",
-    "kkt sido arusha",
-    "sido",                                         # SIDO acronym (rare — NeST usually publishes the full name)
-    "small industries development organisation",    # SIDO long form — this is what NeST actually shows
+    "sido",
+    "small industries development organisation",
     "ghl farm park",
+    # Major infrastructure procurers - high-value electrical tenders
+    "tanesco",
+    "tanzania electric supply",
+    "rural energy agency",
+    "tanroads",
+    "tanzania national roads",
+    "dawasa",
+    "dar es salaam water",
+    "tanzania ports authority",
+    "tazara",
+    "tanzania railways",
+    "national housing corporation",
+    "nssf",
+    "psssf",
+    "ppf pensions",
+    "temesa",
+    "tpdc",
+    "pura",
+    "tanapa",
+    "ttcl",
 ]
-
-# To add a buyer here later, just paste a new line above this comment.
-# Lowercase, substring match. No code changes needed elsewhere — re-run
-# nest_scraper.py to re-classify the next time you scrape.
