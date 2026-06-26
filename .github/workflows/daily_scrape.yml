@@ -1,0 +1,62 @@
+name: Daily Tender Scrape & Deploy
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run NeST scraper
+        run: python nest_scraper.py
+
+      - name: Send email alert (if new matches)
+        run: python send_alert.py
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+
+      - name: Build dashboard HTML
+        run: python build_dashboard.py
+
+      - name: Deploy to Netlify
+        run: |
+          cp qualis_dashboard.html index.html
+          zip -j deploy.zip index.html
+          echo "Uploading to Netlify..."
+          RESULT=$(curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.NETLIFY_AUTH_TOKEN }}" \
+            -H "Content-Type: application/zip" \
+            --data-binary @deploy.zip \
+            "https://api.netlify.com/api/v1/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys")
+          echo "$RESULT" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          state = d.get('state','?')
+          url   = d.get('ssl_url') or d.get('url','?')
+          print(f'Deploy state: {state}')
+          print(f'URL: {url}')
+          if state not in ('ready','uploaded','processing'):
+              print('WARNING: unexpected deploy state')
+          "
+
+      - name: Commit updated data files
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "GitHub Actions"
+          git add qualis_live_tenders.json previous_matches.json
+          git diff --staged --quiet || git commit -m "chore: daily scrape $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git push
