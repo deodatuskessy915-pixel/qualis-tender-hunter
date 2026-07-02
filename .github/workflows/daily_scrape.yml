@@ -25,6 +25,45 @@ jobs:
       - name: Run NeST scraper (all-category v3)
         run: python nest_scraper.py
 
+      - name: Run UNGM scraper (UN Global Marketplace Tanzania)
+        run: python ungm_scraper.py
+        continue-on-error: true
+
+      - name: Merge NeST + UNGM into qualis_live_tenders.json
+        run: |
+          python3 - <<'EOF'
+          import json, os
+
+          def load(path):
+              if not os.path.exists(path):
+                  return [], 0
+              d = json.load(open(path, encoding='utf-8'))
+              return d.get('live', []), int(d.get('total_fetched', 0))
+
+          nest_matches, nest_total   = load('qualis_live_tenders.json')
+          ungm_matches, ungm_total   = load('qualis_ungm_tenders.json')
+
+          # Tag sources (scrapers already set this, but be safe)
+          for m in nest_matches: m.setdefault('source', 'NeST')
+          for m in ungm_matches: m.setdefault('source', 'UNGM')
+
+          combined = sorted(nest_matches + ungm_matches,
+                            key=lambda x: -(x.get('s') or x.get('score') or 0))
+
+          from datetime import datetime, timezone
+          out = {
+              'sources':       ['NeST', 'UNGM'],
+              'fetched_at':    datetime.now(timezone.utc).isoformat(),
+              'total_fetched': nest_total + ungm_total,
+              'total_matched': len(combined),
+              'live':          combined,
+          }
+          json.dump(out, open('qualis_live_tenders.json', 'w', encoding='utf-8'),
+                    indent=2, ensure_ascii=False)
+          print(f"Merged: NeST {len(nest_matches)} + UNGM {len(ungm_matches)} = {len(combined)} matches")
+          print(f"Total tenders scanned: {nest_total + ungm_total}")
+          EOF
+
       - name: Send Telegram and email alert if new matches
         run: python send_alert.py
         continue-on-error: true
@@ -62,6 +101,6 @@ jobs:
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "GitHub Actions"
-          git add qualis_live_tenders.json previous_matches.json
+          git add qualis_live_tenders.json qualis_ungm_tenders.json previous_matches.json
           git diff --staged --quiet || git commit -m "chore: daily scrape $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push
