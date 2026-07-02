@@ -1,0 +1,106 @@
+name: Daily Tender Scrape, Alert and Deploy v3
+
+on:
+  schedule:
+    # 6:00 AM East Africa Time = 3:00 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run NeST scraper (all-category v3)
+        run: python nest_scraper.py
+
+      - name: Run UNGM scraper (UN Global Marketplace Tanzania)
+        run: python ungm_scraper.py
+        continue-on-error: true
+
+      - name: Merge NeST + UNGM into qualis_live_tenders.json
+        run: |
+          python3 - <<'EOF'
+          import json, os
+
+          def load(path):
+              if not os.path.exists(path):
+                  return [], 0
+              d = json.load(open(path, encoding='utf-8'))
+              return d.get('live', []), int(d.get('total_fetched', 0))
+
+          nest_matches, nest_total   = load('qualis_live_tenders.json')
+          ungm_matches, ungm_total   = load('qualis_ungm_tenders.json')
+
+          # Tag sources (scrapers already set this, but be safe)
+          for m in nest_matches: m.setdefault('source', 'NeST')
+          for m in ungm_matches: m.setdefault('source', 'UNGM')
+
+          combined = sorted(nest_matches + ungm_matches,
+                            key=lambda x: -(x.get('s') or x.get('score') or 0))
+
+          from datetime import datetime, timezone
+          out = {
+              'sources':       ['NeST', 'UNGM'],
+              'fetched_at':    datetime.now(timezone.utc).isoformat(),
+              'total_fetched': nest_total + ungm_total,
+              'total_matched': len(combined),
+              'live':          combined,
+          }
+          json.dump(out, open('qualis_live_tenders.json', 'w', encoding='utf-8'),
+                    indent=2, ensure_ascii=False)
+          print(f"Merged: NeST {len(nest_matches)} + UNGM {len(ungm_matches)} = {len(combined)} matches")
+          print(f"Total tenders scanned: {nest_total + ungm_total}")
+          EOF
+
+      - name: Send Telegram and email alert if new matches
+        run: python send_alert.py
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+
+      - name: Build dashboard HTML
+        run: python build_dashboard.py
+
+      - name: Deploy to Netlify
+        run: |
+          cp qualis_dashboard.html index.html
+          printf "/*\n  Content-Type: text/html; charset=utf-8\n" > _headers
+          zip -j deploy.zip index.html _headers
+          echo "Uploading to Netlify..."
+          RESULT=$(curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.NETLIFY_AUTH_TOKEN }}" \
+            -H "Content-Type: application/zip" \
+            --data-binary @deploy.zip \
+            "https://api.netlify.com/api/v1/sites/${{ secrets.NETLIFY_SITE_ID }}/deploys")
+          echo "$RESULT" | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          state = d.get('state','?')
+          url   = d.get('ssl_url') or d.get('url','?')
+          print(f'Deploy state: {state}')
+          print(f'URL: {url}')
+          if state not in ('ready','uploaded','processing'):
+              print('WARNING: unexpected deploy state')
+          "
+
+      - name: Commit updated data files
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "GitHub Actions"
+          git add qualis_live_tenders.json qualis_ungm_tenders.json previous_matches.json
+          git diff --staged --quiet || git commit -m "chore: daily scrape $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git push
