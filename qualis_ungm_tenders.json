@@ -1,26 +1,7 @@
 {
   "source": "UNGM",
-  "fetched_at": "2026-07-22T10:54:11.627866+00:00",
-  "total_fetched": 61,
-  "total_matched": 1,
-  "live": [
-    {
-      "t": "Supply and Delivery of Solar System Equipments to Maswa Game Reserve",
-      "s": 13,
-      "k": [
-        "solar system",
-        "solar"
-      ],
-      "dl": "2026-07-24T07:00:00+00:00",
-      "days_left": 1,
-      "buyer": "UNDP",
-      "u": "https://www.ungm.org/Public/Notice/307793",
-      "ref": "UNDP-TZA-00411",
-      "source": "UNGM",
-      "p": false,
-      "value_tier": "STANDARD",
-      "value_est": "",
-      "published": "17-Jul-2026"
-    }
-  ]
+  "fetched_at": "2026-07-24T10:35:47.514711+00:00",
+  "total_fetched": 71,
+  "total_matched": 0,
+  "live": []
 }
