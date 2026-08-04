@@ -1,7 +1,26 @@
 {
   "source": "UNGM",
-  "fetched_at": "2026-08-03T06:27:45.003972+00:00",
-  "total_fetched": 64,
-  "total_matched": 0,
-  "live": []
+  "fetched_at": "2026-08-04T05:52:33.123961+00:00",
+  "total_fetched": 58,
+  "total_matched": 1,
+  "live": [
+    {
+      "t": "RFQ: Hybrid Solar PV Solutions (Singida, Same, Mahenge &amp; Kilwa Masoko)",
+      "s": 13,
+      "k": [
+        "solar pv",
+        "solar"
+      ],
+      "dl": "2026-08-18T08:41:00+00:00",
+      "days_left": 14,
+      "buyer": "UNDP",
+      "u": "https://www.ungm.org/Public/Notice/309540",
+      "ref": "UNDP-TZA-00419",
+      "source": "UNGM",
+      "p": false,
+      "value_tier": "STANDARD",
+      "value_est": "",
+      "published": "03-Aug-2026"
+    }
+  ]
 }
