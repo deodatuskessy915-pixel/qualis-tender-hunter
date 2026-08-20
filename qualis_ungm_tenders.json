@@ -1,6 +1,6 @@
 {
   "source": "UNGM",
-  "fetched_at": "2026-08-19T03:49:53.114190+00:00",
+  "fetched_at": "2026-08-20T03:50:15.242986+00:00",
   "total_fetched": 74,
   "total_matched": 1,
   "live": [
@@ -12,7 +12,7 @@
         "solar"
       ],
       "dl": "2026-08-25T08:41:00+00:00",
-      "days_left": 6,
+      "days_left": 5,
       "buyer": "UNDP",
       "u": "https://www.ungm.org/Public/Notice/309540",
       "ref": "UNDP-TZA-00419",
