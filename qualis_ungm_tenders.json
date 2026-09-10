@@ -1,7 +1,26 @@
 {
   "source": "UNGM",
-  "fetched_at": "2026-09-09T07:58:47.307132+00:00",
-  "total_fetched": 46,
-  "total_matched": 0,
-  "live": []
+  "fetched_at": "2026-09-10T07:58:28.802402+00:00",
+  "total_fetched": 49,
+  "total_matched": 1,
+  "live": [
+    {
+      "t": "Institutional Contract for Development of Virtual Reality (VR) Learning Content for the IPOSA Solar Installation and Maintenance Course",
+      "s": 13,
+      "k": [
+        "solar installation",
+        "solar"
+      ],
+      "dl": "2026-09-30T20:59:00+00:00",
+      "days_left": 20,
+      "buyer": "UNICEF",
+      "u": "https://www.ungm.org/Public/Notice/313912",
+      "ref": "LRPS 2026 9206067",
+      "source": "UNGM",
+      "p": false,
+      "value_tier": "STANDARD",
+      "value_est": "",
+      "published": "10-Sep-2026"
+    }
+  ]
 }
