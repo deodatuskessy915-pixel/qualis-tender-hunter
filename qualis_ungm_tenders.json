@@ -1,7 +1,7 @@
 {
   "source": "UNGM",
-  "fetched_at": "2026-09-11T07:54:37.383021+00:00",
-  "total_fetched": 52,
+  "fetched_at": "2026-09-12T07:47:05.617721+00:00",
+  "total_fetched": 53,
   "total_matched": 1,
   "live": [
     {
@@ -12,7 +12,7 @@
         "solar"
       ],
       "dl": "2026-09-30T20:59:00+00:00",
-      "days_left": 19,
+      "days_left": 18,
       "buyer": "UNICEF",
       "u": "https://www.ungm.org/Public/Notice/313912",
       "ref": "LRPS 2026 9206067",
